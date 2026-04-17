@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rxbugs.bugtracker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <!-- Update this path to point to your venv's python binary -->
+    <string>/Users/stevenross/Developer/RxBugs/.venv/bin/python</string>
+    <string>/Users/stevenross/Developer/RxBugs/app.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/stevenross/Developer/RxBugs</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/stevenross/Library/Logs/bugtracker.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/stevenross/Library/Logs/bugtracker.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Set your token here — keep this file out of version control -->
+    <key>BUGTRACKER_TOKEN</key>
+    <string>REPLACE_WITH_YOUR_TOKEN</string>
+    <!-- Optional: override the database path -->
+    <!-- <key>DATABASE_URL</key> -->
+    <!-- <string>sqlite:////Users/stevenross/Developer/RxBugs/bugtracker.db</string> -->
+  </dict>
+</dict>
+</plist>

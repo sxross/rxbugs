@@ -1,0 +1,6 @@
+flask>=3.0
+sqlalchemy>=2.0
+alembic>=1.13
+flask-limiter>=3.5
+bleach>=6.1
+python-dotenv>=1.0
