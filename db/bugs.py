@@ -57,12 +57,13 @@ def _row_to_bug(row) -> Bug:
         resolution=row[8],
         created_at=row[9],
         updated_at=row[10],
+        platform=row[11],
     )
 
 
 _SELECT = """
     SELECT id, product, title, description, area, priority, severity,
-           status, resolution, created_at, updated_at
+           status, resolution, created_at, updated_at, platform
     FROM bugs
 """
 # artifact_filenames is column index 10 in the full row but we skip it in _SELECT
@@ -80,6 +81,7 @@ def create(
     title: str,
     description: str | None = None,
     area: str | None = None,
+    platform: str | None = None,
     priority: int | None = None,
     severity: str | None = None,
     actor: str,
@@ -95,11 +97,12 @@ def create(
         conn.execute(
             text("""
                 INSERT INTO bugs
-                    (id, product, title, description, area, priority, severity,
-                     status, resolution, artifact_filenames, created_at, updated_at)
+                    (id, product, title, description, area, platform, priority,
+                     severity, status, resolution, artifact_filenames,
+                     created_at, updated_at)
                 VALUES
-                    (:id, :product, :title, :description, :area, :priority,
-                     :severity, 'open', 'none', '', :now, :now)
+                    (:id, :product, :title, :description, :area, :platform,
+                     :priority, :severity, 'open', 'none', '', :now, :now)
             """),
             {
                 "id": bug_id,
@@ -107,6 +110,7 @@ def create(
                 "title": title,
                 "description": description,
                 "area": area,
+                "platform": platform,
                 "priority": priority,
                 "severity": severity,
                 "now": now,
@@ -125,6 +129,12 @@ def create(
 
     # Also ensure the product exists in the products table
     _ensure_product(engine, product)
+    if area:
+        _ensure_area(engine, area)
+    if platform:
+        _ensure_platform(engine, platform)
+    if severity:
+        _ensure_severity(engine, severity)
 
     return get(engine, bug_id)  # type: ignore[return-value]
 
@@ -152,7 +162,7 @@ def update(
     if bug is None:
         return None
 
-    mutable = {"product", "title", "description", "area", "priority", "severity"}
+    mutable = {"product", "title", "description", "area", "platform", "priority", "severity"}
     updates = {k: v for k, v in fields.items() if k in mutable}
     if not updates:
         return bug
@@ -186,6 +196,12 @@ def update(
 
     if "product" in updates:
         _ensure_product(engine, updates["product"])
+    if updates.get("area"):
+        _ensure_area(engine, updates["area"])
+    if updates.get("platform"):
+        _ensure_platform(engine, updates["platform"])
+    if updates.get("severity"):
+        _ensure_severity(engine, updates["severity"])
 
     return get(engine, bug_id)
 
@@ -270,6 +286,36 @@ def _ensure_product(engine: Engine, name: str) -> None:
     with engine.connect() as conn:
         conn.execute(
             text("INSERT OR IGNORE INTO products (name) VALUES (:name)"),
+            {"name": name},
+        )
+        conn.commit()
+
+
+def _ensure_area(engine: Engine, name: str) -> None:
+    """Insert the area into the areas table if not already present."""
+    with engine.connect() as conn:
+        conn.execute(
+            text("INSERT OR IGNORE INTO areas (name) VALUES (:name)"),
+            {"name": name},
+        )
+        conn.commit()
+
+
+def _ensure_severity(engine: Engine, name: str) -> None:
+    """Insert the severity into the severities table if not already present."""
+    with engine.connect() as conn:
+        conn.execute(
+            text("INSERT OR IGNORE INTO severities (name) VALUES (:name)"),
+            {"name": name},
+        )
+        conn.commit()
+
+
+def _ensure_platform(engine: Engine, name: str) -> None:
+    """Insert the platform into the platforms table if not already present."""
+    with engine.connect() as conn:
+        conn.execute(
+            text("INSERT OR IGNORE INTO platforms (name) VALUES (:name)"),
             {"name": name},
         )
         conn.commit()

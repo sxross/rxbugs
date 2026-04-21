@@ -8,13 +8,16 @@
 import type {
   Agent,
   Annotation,
+  Area,
   ArtifactSummary,
   Bug,
   BugFilters,
   BugListResponse,
   BugSummary,
+  Platform,
   Product,
   Resolution,
+  Severity,
 } from "./types";
 
 const TOKEN_KEY = "bugtracker_token";
@@ -101,6 +104,7 @@ function toQueryString(filters: BugFilters): string {
     params.set("has_artifacts", String(filters.has_artifacts));
   filters.product?.forEach((v) => params.append("product", v));
   filters.area?.forEach((v) => params.append("area", v));
+  filters.platform?.forEach((v) => params.append("platform", v));
   filters.priority?.forEach((v) => params.append("priority", String(v)));
   filters.severity?.forEach((v) => params.append("severity", v));
   filters.resolution?.forEach((v) => params.append("resolution", v));
@@ -124,6 +128,7 @@ export const bugs = {
     title: string;
     description?: string;
     area?: string;
+    platform?: string;
     priority?: number;
     severity?: string;
   }): Promise<BugSummary> {
@@ -139,6 +144,7 @@ export const bugs = {
       title: string;
       description: string;
       area: string;
+      platform: string;
       priority: number;
       severity: string;
     }>,
@@ -228,6 +234,96 @@ export const products = {
   },
   archive(name: string): Promise<Product> {
     return apiFetch(`/api/products/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Areas
+// ---------------------------------------------------------------------------
+
+export const areas = {
+  list(includeArchived = false): Promise<Area[]> {
+    return apiFetch(
+      `/api/areas${includeArchived ? "?include_archived=true" : ""}`,
+    );
+  },
+  create(name: string, description?: string): Promise<Area> {
+    return apiFetch("/api/areas", {
+      method: "POST",
+      body: JSON.stringify({ name, description }),
+    });
+  },
+  rename(oldName: string, newName: string): Promise<Area> {
+    return apiFetch(`/api/areas/${encodeURIComponent(oldName)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: newName }),
+    });
+  },
+  archive(name: string): Promise<Area> {
+    return apiFetch(`/api/areas/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Severities
+// ---------------------------------------------------------------------------
+
+export const severities = {
+  list(includeArchived = false): Promise<Severity[]> {
+    return apiFetch(
+      `/api/severities${includeArchived ? "?include_archived=true" : ""}`,
+    );
+  },
+  create(name: string, description?: string): Promise<Severity> {
+    return apiFetch("/api/severities", {
+      method: "POST",
+      body: JSON.stringify({ name, description }),
+    });
+  },
+  rename(oldName: string, newName: string): Promise<Severity> {
+    return apiFetch(`/api/severities/${encodeURIComponent(oldName)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: newName }),
+    });
+  },
+  archive(name: string): Promise<Severity> {
+    return apiFetch(`/api/severities/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Platforms
+// ---------------------------------------------------------------------------
+
+export const platforms = {
+  list(includeArchived = false): Promise<Platform[]> {
+    return apiFetch(
+      `/api/platforms${includeArchived ? "?include_archived=true" : ""}`,
+    );
+  },
+  create(name: string, description?: string): Promise<Platform> {
+    return apiFetch("/api/platforms", {
+      method: "POST",
+      body: JSON.stringify({ name, description }),
+    });
+  },
+  rename(oldName: string, newName: string): Promise<Platform> {
+    return apiFetch(`/api/platforms/${encodeURIComponent(oldName)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: newName }),
+    });
+  },
+  archive(name: string): Promise<Platform> {
+    return apiFetch(`/api/platforms/${encodeURIComponent(name)}`, {
       method: "PATCH",
       body: JSON.stringify({ archived: true }),
     });

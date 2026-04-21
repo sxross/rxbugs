@@ -12,9 +12,11 @@ from typing import Literal, Optional, TypedDict
 # Enum types
 # ---------------------------------------------------------------------------
 
-Area = Literal["ui", "middleware", "backend", "database", "sync"]
+# Area was previously a Literal; it is now admin-managed (see the ``areas`` table)
+# so we accept any string.
 Priority = Literal[1, 2, 3]
-Severity = Literal["showstopper", "serious", "enhancement", "nice_to_have"]
+# Severity was previously a Literal; it is now admin-managed (see the
+# ``severities`` table) so we accept any string.
 Status = Literal["open", "closed"]
 Resolution = Literal["none", "fixed", "no_repro", "duplicate", "wont_fix"]
 ActorType = Literal["human", "agent"]
@@ -29,9 +31,10 @@ class Bug(TypedDict):
     product: str
     title: str
     description: str | None
-    area: Area | None
+    area: str | None
+    platform: str | None
     priority: Priority | None
-    severity: Severity | None
+    severity: str | None
     status: Status
     resolution: Resolution
     created_at: str
@@ -44,9 +47,10 @@ class BugSummary(TypedDict):
     id: str
     product: str
     title: str
-    area: Area | None
+    area: str | None
+    platform: str | None
     priority: Priority | None
-    severity: Severity | None
+    severity: str | None
     status: Status
     resolution: Resolution
     created_at: str
@@ -56,9 +60,10 @@ class BugSummary(TypedDict):
 class BugFilters(TypedDict, total=False):
     q: str
     product: list[str]
-    area: list[Area]
+    area: list[str]
+    platform: list[str]
     priority: list[Priority]
-    severity: list[Severity]
+    severity: list[str]
     status: Status
     resolution: list[Resolution]
     related_to: str
@@ -111,6 +116,42 @@ class Relation(TypedDict):
 
 
 class Product(TypedDict):
+    name: str
+    description: str | None
+    archived: bool
+    bug_count: int
+
+
+# ---------------------------------------------------------------------------
+# Areas
+# ---------------------------------------------------------------------------
+
+
+class Area(TypedDict):
+    name: str
+    description: str | None
+    archived: bool
+    bug_count: int
+
+
+# ---------------------------------------------------------------------------
+# Severities
+# ---------------------------------------------------------------------------
+
+
+class Severity(TypedDict):
+    name: str
+    description: str | None
+    archived: bool
+    bug_count: int
+
+
+# ---------------------------------------------------------------------------
+# Platforms
+# ---------------------------------------------------------------------------
+
+
+class Platform(TypedDict):
     name: str
     description: str | None
     archived: bool

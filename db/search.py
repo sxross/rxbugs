@@ -85,6 +85,8 @@ class Fts5Backend:
             _in_filter("product", "product", filters["product"])  # type: ignore[arg-type]
         if filters.get("area"):
             _in_filter("area", "area", filters["area"])  # type: ignore[arg-type]
+        if filters.get("platform"):
+            _in_filter("platform", "platform", filters["platform"])  # type: ignore[arg-type]
         if filters.get("priority"):
             _in_filter("priority", "priority", filters["priority"])  # type: ignore[arg-type]
         if filters.get("severity"):
@@ -107,7 +109,8 @@ class Fts5Backend:
                 bugs.id, bugs.product, bugs.title,
                 bugs.area, bugs.priority, bugs.severity,
                 bugs.status, bugs.resolution,
-                bugs.created_at, bugs.updated_at
+                bugs.created_at, bugs.updated_at,
+                bugs.platform
             FROM bugs
             {fts_join}
             {related_join}
@@ -181,4 +184,5 @@ def _row_to_summary(row) -> "BugSummary":
         resolution=row[7],
         created_at=row[8],
         updated_at=row[9],
+        platform=row[10],
     )

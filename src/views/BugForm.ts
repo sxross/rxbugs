@@ -3,15 +3,23 @@
  * Takes an optional initialValues object for pre-population (edit mode).
  */
 
-import { bugs as bugsApi, products as productsApi, relations as relationsApi } from "../api";
+import {
+  bugs as bugsApi,
+  products as productsApi,
+  areas as areasApi,
+  platforms as platformsApi,
+  severities as severitiesApi,
+  relations as relationsApi,
+} from "../api";
 import type { Bug, BugSummary } from "../types";
-import { navigate, escHtml } from "../utils";
+import { escHtml } from "../utils";
 
 interface FormValues {
   product: string;
   title: string;
   description: string;
   area: string;
+  platform: string;
   priority: string;
   severity: string;
 }
@@ -60,11 +68,13 @@ export function render(
         <label class="form-label" for="area">Area</label>
         <select class="form-control" id="area" name="area">
           <option value="">— none —</option>
-          <option value="ui"${iv.area === "ui" ? " selected" : ""}>UI</option>
-          <option value="middleware"${iv.area === "middleware" ? " selected" : ""}>Middleware</option>
-          <option value="backend"${iv.area === "backend" ? " selected" : ""}>Backend</option>
-          <option value="database"${iv.area === "database" ? " selected" : ""}>Database</option>
-          <option value="sync"${iv.area === "sync" ? " selected" : ""}>Sync</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="platform">Platform</label>
+        <select class="form-control" id="platform" name="platform">
+          <option value="">— none —</option>
         </select>
       </div>
 
@@ -82,10 +92,6 @@ export function render(
         <label class="form-label" for="severity">Severity</label>
         <select class="form-control" id="severity" name="severity">
           <option value="">— none —</option>
-          <option value="showstopper"${iv.severity === "showstopper" ? " selected" : ""}>Showstopper</option>
-          <option value="serious"${iv.severity === "serious" ? " selected" : ""}>Serious</option>
-          <option value="enhancement"${iv.severity === "enhancement" ? " selected" : ""}>Enhancement</option>
-          <option value="nice_to_have"${iv.severity === "nice_to_have" ? " selected" : ""}>Nice to have</option>
         </select>
       </div>
 
@@ -120,6 +126,70 @@ export function render(
       opt.value = p.name;
       dl.appendChild(opt);
     });
+  }).catch(() => { /* non-fatal */ });
+
+  // ---- area options ----
+  const areaSelect = container.querySelector<HTMLSelectElement>("#area")!;
+  const currentArea = iv.area ?? "";
+  areasApi.list().then(list => {
+    const names = new Set(list.map(a => a.name));
+    list.forEach(a => {
+      const opt = document.createElement("option");
+      opt.value = a.name;
+      opt.textContent = a.name;
+      if (a.name === currentArea) opt.selected = true;
+      areaSelect.appendChild(opt);
+    });
+    // Preserve the currently-set area even if it's archived / unknown.
+    if (currentArea && !names.has(currentArea)) {
+      const opt = document.createElement("option");
+      opt.value = currentArea;
+      opt.textContent = `${currentArea} (archived)`;
+      opt.selected = true;
+      areaSelect.appendChild(opt);
+    }
+  }).catch(() => { /* non-fatal */ });
+
+  // ---- platform options ----
+  const platformSelect = container.querySelector<HTMLSelectElement>("#platform")!;
+  const currentPlatform = iv.platform ?? "";
+  platformsApi.list().then(list => {
+    const names = new Set(list.map(p => p.name));
+    list.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.name;
+      opt.textContent = p.name;
+      if (p.name === currentPlatform) opt.selected = true;
+      platformSelect.appendChild(opt);
+    });
+    if (currentPlatform && !names.has(currentPlatform)) {
+      const opt = document.createElement("option");
+      opt.value = currentPlatform;
+      opt.textContent = `${currentPlatform} (archived)`;
+      opt.selected = true;
+      platformSelect.appendChild(opt);
+    }
+  }).catch(() => { /* non-fatal */ });
+
+  // ---- severity options ----
+  const severitySelect = container.querySelector<HTMLSelectElement>("#severity")!;
+  const currentSeverity = iv.severity ?? "";
+  severitiesApi.list().then(list => {
+    const names = new Set(list.map(s => s.name));
+    list.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.name;
+      opt.textContent = s.name.replace(/_/g, " ");
+      if (s.name === currentSeverity) opt.selected = true;
+      severitySelect.appendChild(opt);
+    });
+    if (currentSeverity && !names.has(currentSeverity)) {
+      const opt = document.createElement("option");
+      opt.value = currentSeverity;
+      opt.textContent = `${currentSeverity.replace(/_/g, " ")} (archived)`;
+      opt.selected = true;
+      severitySelect.appendChild(opt);
+    }
   }).catch(() => { /* non-fatal */ });
 
   // ---- priority segmented control ----
@@ -193,6 +263,7 @@ export function render(
       title: (fd.get("title") as string).trim(),
       description: (fd.get("description") as string).trim(),
       area: fd.get("area") as string,
+      platform: fd.get("platform") as string,
       priority: selectedPriority,
       severity: fd.get("severity") as string,
     };
@@ -223,6 +294,7 @@ export function render(
     };
     if (vals.description) payload["description"] = vals.description;
     if (vals.area) payload["area"] = vals.area;
+    if (vals.platform) payload["platform"] = vals.platform;
     if (vals.priority) payload["priority"] = parseInt(vals.priority, 10);
     if (vals.severity) payload["severity"] = vals.severity;
 

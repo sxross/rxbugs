@@ -1,6 +1,6 @@
-export type Area = "ui" | "middleware" | "backend" | "database" | "sync";
+// Areas are admin-managed (see the `areas` table); any string is valid.
 export type Priority = 1 | 2 | 3;
-export type Severity = "showstopper" | "serious" | "enhancement" | "nice_to_have";
+// Severities are admin-managed (see the `severities` table); any string is valid.
 export type Status = "open" | "closed";
 export type Resolution = "none" | "fixed" | "no_repro" | "duplicate" | "wont_fix";
 export type ActorType = "human" | "agent";
@@ -9,9 +9,10 @@ export interface BugSummary {
   id: string;
   product: string;
   title: string;
-  area: Area | null;
+  area: string | null;
+  platform: string | null;
   priority: Priority | null;
-  severity: Severity | null;
+  severity: string | null;
   status: Status;
   resolution: Resolution;
   created_at: string;
@@ -50,6 +51,27 @@ export interface Product {
   bug_count: number;
 }
 
+export interface Area {
+  name: string;
+  description: string | null;
+  archived: boolean;
+  bug_count: number;
+}
+
+export interface Severity {
+  name: string;
+  description: string | null;
+  archived: boolean;
+  bug_count: number;
+}
+
+export interface Platform {
+  name: string;
+  description: string | null;
+  archived: boolean;
+  bug_count: number;
+}
+
 export interface Agent {
   key: string;
   name: string;
@@ -66,9 +88,10 @@ export interface BugListResponse {
 export interface BugFilters {
   q?: string;
   product?: string[];
-  area?: Area[];
+  area?: string[];
+  platform?: string[];
   priority?: Priority[];
-  severity?: Severity[];
+  severity?: string[];
   status?: Status | "all";
   resolution?: Resolution[];
   related_to?: string;

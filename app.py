@@ -135,10 +135,13 @@ def index():
 # ---------------------------------------------------------------------------
 
 import db.annotations as annotations_repo
+import db.areas as areas_repo
 import db.artifacts as artifacts_repo
 import db.bugs as bugs_repo
+import db.platforms as platforms_repo
 import db.products as products_repo
 import db.relations as relations_repo
+import db.severities as severities_repo
 
 
 @app.route("/bugs", methods=["GET"])
@@ -157,6 +160,8 @@ def list_bugs():
         filters["product"] = _multi("product")  # type: ignore[assignment]
     if _multi("area"):
         filters["area"] = _multi("area")  # type: ignore[assignment]
+    if _multi("platform"):
+        filters["platform"] = _multi("platform")  # type: ignore[assignment]
     if _multi("priority"):
         try:
             filters["priority"] = [int(p) for p in _multi("priority")]  # type: ignore[assignment]
@@ -196,6 +201,7 @@ def create_bug():
         title=data["title"],
         description=data.get("description"),
         area=data.get("area"),
+        platform=data.get("platform"),
         priority=data.get("priority"),
         severity=data.get("severity"),
         actor=g.actor,
@@ -497,6 +503,124 @@ def update_product(name: str):
         result = products_repo._get(_engine, name)  # type: ignore[attr-defined]
     if result is None:
         return _bad(f"Product '{name}' not found.", 404)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Areas API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/areas", methods=["GET"])
+@require_auth
+def list_areas_route():
+    include_archived = request.args.get("include_archived", "").lower() == "true"
+    return jsonify(areas_repo.list_areas(_engine, include_archived=include_archived))
+
+
+@app.route("/api/areas", methods=["POST"])
+@require_auth
+def create_area():
+    data = request.get_json(silent=True) or {}
+    if not data.get("name"):
+        return _bad("name is required.")
+    area = areas_repo.create(
+        _engine, name=data["name"], description=data.get("description")
+    )
+    return jsonify(area), 201
+
+
+@app.route("/api/areas/<name>", methods=["PATCH"])
+@require_auth
+def update_area(name: str):
+    data = request.get_json(silent=True) or {}
+    if "name" in data and data["name"] != name:
+        result = areas_repo.rename(_engine, name, data["name"])
+    elif data.get("archived") is True:
+        result = areas_repo.archive(_engine, name)
+    else:
+        result = areas_repo._get(_engine, name)  # type: ignore[attr-defined]
+    if result is None:
+        return _bad(f"Area '{name}' not found.", 404)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Severities API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/severities", methods=["GET"])
+@require_auth
+def list_severities_route():
+    include_archived = request.args.get("include_archived", "").lower() == "true"
+    return jsonify(
+        severities_repo.list_severities(_engine, include_archived=include_archived)
+    )
+
+
+@app.route("/api/severities", methods=["POST"])
+@require_auth
+def create_severity():
+    data = request.get_json(silent=True) or {}
+    if not data.get("name"):
+        return _bad("name is required.")
+    severity = severities_repo.create(
+        _engine, name=data["name"], description=data.get("description")
+    )
+    return jsonify(severity), 201
+
+
+@app.route("/api/severities/<name>", methods=["PATCH"])
+@require_auth
+def update_severity(name: str):
+    data = request.get_json(silent=True) or {}
+    if "name" in data and data["name"] != name:
+        result = severities_repo.rename(_engine, name, data["name"])
+    elif data.get("archived") is True:
+        result = severities_repo.archive(_engine, name)
+    else:
+        result = severities_repo._get(_engine, name)  # type: ignore[attr-defined]
+    if result is None:
+        return _bad(f"Severity '{name}' not found.", 404)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Platforms API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/platforms", methods=["GET"])
+@require_auth
+def list_platforms_route():
+    include_archived = request.args.get("include_archived", "").lower() == "true"
+    return jsonify(
+        platforms_repo.list_platforms(_engine, include_archived=include_archived)
+    )
+
+
+@app.route("/api/platforms", methods=["POST"])
+@require_auth
+def create_platform():
+    data = request.get_json(silent=True) or {}
+    if not data.get("name"):
+        return _bad("name is required.")
+    platform = platforms_repo.create(
+        _engine, name=data["name"], description=data.get("description")
+    )
+    return jsonify(platform), 201
+
+
+@app.route("/api/platforms/<name>", methods=["PATCH"])
+@require_auth
+def update_platform(name: str):
+    data = request.get_json(silent=True) or {}
+    if "name" in data and data["name"] != name:
+        result = platforms_repo.rename(_engine, name, data["name"])
+    elif data.get("archived") is True:
+        result = platforms_repo.archive(_engine, name)
+    else:
+        result = platforms_repo._get(_engine, name)  # type: ignore[attr-defined]
+    if result is None:
+        return _bad(f"Platform '{name}' not found.", 404)
     return jsonify(result)
 
 

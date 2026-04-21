@@ -1,5 +1,30 @@
 /** Shared UI utility functions. */
 
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+marked.setOptions({ breaks: true, gfm: true });
+
+const MD_ALLOWED_TAGS = [
+  "p", "em", "strong", "code", "pre", "ul", "ol", "li",
+  "blockquote", "a", "br", "h1", "h2", "h3", "h4", "hr",
+  "del", "s",
+];
+const MD_ALLOWED_ATTR = ["href", "title"];
+
+/**
+ * Parse markdown and sanitize the resulting HTML.
+ * Safe to inject into innerHTML.
+ */
+export function renderMarkdown(src: string | null | undefined): string {
+  if (!src) return "";
+  const raw = marked.parse(src, { async: false }) as string;
+  return DOMPurify.sanitize(raw, {
+    ALLOWED_TAGS: MD_ALLOWED_TAGS,
+    ALLOWED_ATTR: MD_ALLOWED_ATTR,
+  });
+}
+
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Record<string, string> = {},

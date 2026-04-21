@@ -1,6 +1,6 @@
 import { bugs as bugsApi, annotations as annotationsApi, artifacts as artifactsApi } from "../api";
 import type { Bug } from "../types";
-import { navigate, escHtml, formatAge, priorityBadge, severityBadge } from "../utils";
+import { navigate, escHtml, formatAge, priorityBadge, severityBadge, renderMarkdown } from "../utils";
 import { showCloseDialog } from "./CloseDialog";
 
 export function render(container: HTMLElement, bugId: string): void {
@@ -27,6 +27,7 @@ function renderBug(container: HTMLElement, bug: Bug): void {
         ${bug.priority ? priorityBadge(bug.priority) : ""}
         ${bug.severity ? severityBadge(bug.severity) : ""}
         ${bug.area ? `<span class="badge" style="background:var(--surface2);color:var(--text-dim)">${escHtml(bug.area)}</span>` : ""}
+        ${bug.platform ? `<span class="badge" style="background:var(--surface2);color:var(--text-dim)">${escHtml(bug.platform)}</span>` : ""}
         ${isClosed ? `<span class="badge" style="background:var(--surface2);color:var(--text-dim)">${escHtml(bug.resolution)}</span>` : ""}
       </div>
       <div class="detail-meta">
@@ -49,7 +50,7 @@ function renderBug(container: HTMLElement, bug: Bug): void {
     ${bug.description ? `
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="description-body">${escHtml(bug.description)}</div>
+      <div class="description-body markdown-body">${renderMarkdown(bug.description)}</div>
     </div>` : ""}
 
     ${bug.related_bugs.length ? `
@@ -71,7 +72,7 @@ function renderBug(container: HTMLElement, bug: Bug): void {
               <span class="annotation-author">${escHtml(a.author)}${a.author_type === "agent" ? " 🤖" : ""}</span>
               <span class="annotation-time">${formatAge(a.created_at)}</span>
             </div>
-            <div class="annotation-body">${escHtml(a.body)}</div>
+            <div class="annotation-body markdown-body">${renderMarkdown(a.body)}</div>
           </div>
         `).join("")}
         ${bug.annotations.length === 0 ? `<div class="empty-state" style="padding:16px 0">No annotations yet.</div>` : ""}

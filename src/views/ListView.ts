@@ -1,11 +1,13 @@
-import { bugs as bugsApi } from "../api";
-import type { BugFilters, BugSummary, Priority, Severity, Area } from "../types";
+import {
+  bugs as bugsApi,
+  areas as areasApi,
+  platforms as platformsApi,
+  severities as severitiesApi,
+} from "../api";
+import type { BugFilters, BugSummary } from "../types";
 import { formatAge, priorityBadge, severityBadge, el, navigate } from "../utils";
 
 let _debounce: ReturnType<typeof setTimeout> | null = null;
-
-const AREAS: Area[] = ["ui", "middleware", "backend", "database", "sync"];
-const SEVERITIES: Severity[] = ["showstopper", "serious", "enhancement", "nice_to_have"];
 
 export function render(container: HTMLElement): void {
   const filters: BugFilters = { status: "open" };
@@ -44,8 +46,6 @@ export function render(container: HTMLElement): void {
     { label: "P1", key: "priority", values: ["1"], multi: true },
     { label: "P2", key: "priority", values: ["2"], multi: true },
     { label: "P3", key: "priority", values: ["3"], multi: true },
-    ...SEVERITIES.map(s => ({ label: s.replace("_", " "), key: "severity" as keyof BugFilters, values: [s], multi: true })),
-    ...AREAS.map(a => ({ label: a, key: "area" as keyof BugFilters, values: [a], multi: true })),
   ];
 
   function buildChips(): void {
@@ -120,6 +120,7 @@ export function render(container: HTMLElement): void {
           ${bug.priority ? `<span class="badge badge-p${bug.priority}">P${bug.priority}</span>` : ""}
           ${bug.severity ? `<span class="badge badge-${bug.severity}">${escHtml(bug.severity.replace("_", " "))}</span>` : ""}
           ${bug.area ? `<span class="badge" style="background:var(--surface2);color:var(--text-dim)">${escHtml(bug.area)}</span>` : ""}
+          ${bug.platform ? `<span class="badge" style="background:var(--surface2);color:var(--text-dim)">${escHtml(bug.platform)}</span>` : ""}
           <span class="age">${formatAge(bug.updated_at)}</span>
         </span>
       `;
@@ -142,6 +143,43 @@ export function render(container: HTMLElement): void {
 
   buildChips();
   loadBugs();
+
+  // ---- load severity + area chips asynchronously ----
+  severitiesApi.list().then(list => {
+    list.forEach(s => {
+      chipGroups.push({
+        label: s.name.replace(/_/g, " "),
+        key: "severity",
+        values: [s.name],
+        multi: true,
+      });
+    });
+    buildChips();
+  }).catch(() => { /* non-fatal */ });
+
+  areasApi.list().then(areas => {
+    areas.forEach(a => {
+      chipGroups.push({
+        label: a.name,
+        key: "area",
+        values: [a.name],
+        multi: true,
+      });
+    });
+    buildChips();
+  }).catch(() => { /* non-fatal */ });
+
+  platformsApi.list().then(list => {
+    list.forEach(p => {
+      chipGroups.push({
+        label: p.name,
+        key: "platform",
+        values: [p.name],
+        multi: true,
+      });
+    });
+    buildChips();
+  }).catch(() => { /* non-fatal */ });
 }
 
 function escHtml(s: string): string {
