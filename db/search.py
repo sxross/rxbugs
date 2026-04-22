@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class SearchBackend(Protocol):
-    def query(self, filters: "BugFilters") -> list["BugSummary"]: ...
+    def query(self, filters: "BugFilters") -> dict[str, any]: ...
     def index_bug(self, bug_id: str) -> None: ...
     def update_artifacts(self, bug_id: str, filenames: list[str]) -> None: ...
     def remove_bug(self, bug_id: str) -> None: ...
@@ -31,10 +31,23 @@ class Fts5Backend:
     # Public interface
     # ------------------------------------------------------------------
 
-    def query(self, filters: "BugFilters") -> list["BugSummary"]:
-        """Run a filtered search against bugs + FTS5 index."""
+    def query(self, filters: "BugFilters") -> dict[str, any]:
+        """Run a filtered search against bugs + FTS5 index.
+        
+        Returns:
+            Dictionary with:
+            - bugs: list of BugSummary
+            - total: total count of matching bugs (before pagination)
+            - page: current page number
+            - per_page: bugs per page
+        """
         conditions: list[str] = []
         params: dict = {}
+        
+        # Pagination params
+        page = filters.get("page", 1)
+        per_page = filters.get("per_page", 50)
+        offset = (page - 1) * per_page
 
         # Full-text query — use FTS5 MATCH if text is provided
         fts_join = ""
@@ -104,7 +117,17 @@ class Fts5Backend:
 
         where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        sql = f"""
+        # Count query (total matching bugs)
+        count_sql = f"""
+            SELECT COUNT(*)
+            FROM bugs
+            {fts_join}
+            {related_join}
+            {where_clause}
+        """
+        
+        # Data query with pagination
+        data_sql = f"""
             SELECT
                 bugs.id, bugs.product, bugs.title,
                 bugs.area, bugs.priority, bugs.severity,
@@ -116,12 +139,22 @@ class Fts5Backend:
             {related_join}
             {where_clause}
             ORDER BY bugs.created_at DESC
+            LIMIT :limit OFFSET :offset
         """
+        
+        params["limit"] = per_page
+        params["offset"] = offset
 
         with self._engine.connect() as conn:
-            rows = conn.execute(text(sql), params).fetchall()
+            total = conn.execute(text(count_sql), {k: v for k, v in params.items() if k not in ["limit", "offset"]}).scalar()
+            rows = conn.execute(text(data_sql), params).fetchall()
 
-        return [_row_to_summary(r) for r in rows]
+        return {
+            "bugs": [_row_to_summary(r) for r in rows],
+            "total": total or 0,
+            "page": page,
+            "per_page": per_page,
+        }
 
     def index_bug(self, bug_id: str) -> None:
         """Rebuild the FTS row for a single bug (called after artifact changes)."""

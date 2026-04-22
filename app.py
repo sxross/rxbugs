@@ -321,9 +321,20 @@ def list_bugs():
         filters["created_after"] = request.args["created_after"]
     if request.args.get("created_before"):
         filters["created_before"] = request.args["created_before"]
+    
+    # Pagination
+    if request.args.get("page"):
+        try:
+            filters["page"] = int(request.args["page"])
+        except ValueError:
+            return _bad("page must be an integer.")
+    if request.args.get("per_page"):
+        try:
+            filters["per_page"] = int(request.args["per_page"])
+        except ValueError:
+            return _bad("per_page must be an integer.")
 
-    results = _search.query(filters)
-    return jsonify({"total": len(results), "bugs": results})
+    return jsonify(_search.query(filters))
 
 
 @app.route("/bugs", methods=["POST"])
