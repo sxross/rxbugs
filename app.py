@@ -31,11 +31,16 @@ if not _TOKEN:
 # ---------------------------------------------------------------------------
 
 from db.connection import init_engine, make_search_backend
+from pydantic import ValidationError
+from schemas import BugCreate, CloseRequest
+from services import BugService
 
 _engine = init_engine()
 _search = make_search_backend(_engine)
+_bug_service = BugService(_engine)
 
 # Run Alembic migrations on startup (idempotent — safe to run every time)
+# Guarded by RUN_MIGRATIONS env var to prevent accidental production runs
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 
@@ -46,7 +51,8 @@ def _run_migrations() -> None:
     )
     alembic_command.upgrade(cfg, "head")
 
-_run_migrations()
+if os.environ.get("RUN_MIGRATIONS", "false").lower() in ("true", "1", "yes"):
+    _run_migrations()
 
 # ---------------------------------------------------------------------------
 # Flask app + rate limiter
@@ -55,6 +61,7 @@ _run_migrations()
 from flask import Flask, Response, g, jsonify, request, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
@@ -62,12 +69,81 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 _UPLOADS_DIR = Path(__file__).parent / "uploads"
 _UPLOADS_DIR.mkdir(exist_ok=True)
 
+# File upload security: allowed extensions and size limits
+ALLOWED_EXTENSIONS = {
+    # Images
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg",
+    # Documents
+    "pdf", "txt", "md", "rst",
+    # Logs
+    "log", "csv", "json", "xml", "yaml", "yml",
+    # Archives
+    "zip", "tar", "gz", "bz2",
+    # Code/config
+    "py", "js", "ts", "html", "css",
+}
+
+MAX_FILE_SIZE_MB = {
+    "image": 10,  # 10 MB for images
+    "default": 50,  # 50 MB for everything else
+}
+
+def _allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Rate limiter: Use Redis if available, fall back to in-memory (dev only)
+_REDIS_URL = os.environ.get("REDIS_URL")
+if _REDIS_URL:
+    _storage_uri = _REDIS_URL
+else:
+    _storage_uri = "memory://"
+    print("WARNING: Using in-memory rate limiter (dev only). Set REDIS_URL for production.", file=sys.stderr)
+
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     default_limits=["200 per minute"],
-    storage_uri="memory://",
+    storage_uri=_storage_uri,
 )
+
+# ---------------------------------------------------------------------------
+# Session token storage for QR code auth (5-minute expiry)
+# ---------------------------------------------------------------------------
+
+import secrets
+import time
+from threading import Lock
+
+_session_tokens: dict[str, float] = {}  # token -> expiry_timestamp
+_session_lock = Lock()
+_SESSION_TTL = 300  # 5 minutes
+
+def _create_session_token() -> str:
+    """Generate a short-lived session token for QR code auth."""
+    token = secrets.token_urlsafe(16)
+    expiry = time.time() + _SESSION_TTL
+    with _session_lock:
+        # Clean up expired tokens
+        now = time.time()
+        expired = [t for t, exp in _session_tokens.items() if exp < now]
+        for t in expired:
+            del _session_tokens[t]
+        # Store new token
+        _session_tokens[token] = expiry
+    return token
+
+def _validate_session_token(token: str) -> bool:
+    """Validate and consume a session token (one-time use)."""
+    with _session_lock:
+        expiry = _session_tokens.get(token)
+        if expiry is None:
+            return False
+        if time.time() > expiry:
+            del _session_tokens[token]
+            return False
+        # Consume token (one-time use)
+        del _session_tokens[token]
+        return True
 
 # ---------------------------------------------------------------------------
 # Auth helpers
@@ -119,6 +195,70 @@ def _bug_or_404(bug_id: str):
     if bug is None:
         return None, _bad(f"Bug '{bug_id}' not found.", 404)
     return bug, None
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoints (QR code + session tokens)
+# ---------------------------------------------------------------------------
+
+@app.route("/auth/session", methods=["POST"])
+@require_auth
+def create_session():
+    """Create a short-lived session token for QR code auth."""
+    token = _create_session_token()
+    return jsonify({"session_token": token, "expires_in": _SESSION_TTL})
+
+
+@app.route("/auth/qr", methods=["GET"])
+@require_auth
+def get_qr_code():
+    """Generate QR code containing a session login URL."""
+    import io
+    import qrcode
+    
+    # Create session token
+    session_token = _create_session_token()
+    
+    # Build login URL (use request host for flexibility)
+    base_url = request.url_root.rstrip("/")
+    login_url = f"{base_url}/auth/login?session={session_token}"
+    
+    # Generate QR code
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(login_url)
+    qr.make(fit=True)
+    
+    # Render as SVG
+    img_io = io.BytesIO()
+    img = qr.make_image(fill_color="black", back_color="white")
+    img.save(img_io, format="PNG")
+    img_io.seek(0)
+    
+    return Response(img_io.getvalue(), mimetype="image/png")
+
+
+@app.route("/auth/login", methods=["GET"])
+def session_login():
+    """Validate session token and redirect to app with auth token."""
+    session_token = request.args.get("session")
+    if not session_token or not _validate_session_token(session_token):
+        return "<h1>Invalid or expired session token</h1><p>Please scan the QR code again.</p>", 403
+    
+    # Return HTML that sets token in localStorage and redirects
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>RxBugs - Login</title>
+</head>
+<body>
+    <h1>Logging you in...</h1>
+    <script>
+        localStorage.setItem('bugtracker_token', '{_TOKEN}');
+        window.location.href = '/';
+    </script>
+</body>
+</html>"""
+    return html
 
 
 # ---------------------------------------------------------------------------
@@ -190,20 +330,23 @@ def list_bugs():
 @require_auth
 def create_bug():
     data = request.get_json(silent=True) or {}
-    if not data.get("product"):
-        return _bad("product is required.")
-    if not data.get("title"):
-        return _bad("title is required.")
+    try:
+        schema = BugCreate.model_validate(data)
+    except ValidationError as exc:
+        error = exc.errors()[0]
+        field = error["loc"][0] if error["loc"] else "field"
+        msg = error["msg"]
+        return _bad(f"{field} {msg.lower()}" if msg == "Field required" else f"{field}: {msg}", 400)
 
     bug = bugs_repo.create(
         _engine,
-        product=data["product"],
-        title=data["title"],
-        description=data.get("description"),
-        area=data.get("area"),
-        platform=data.get("platform"),
-        priority=data.get("priority"),
-        severity=data.get("severity"),
+        product=schema.product,
+        title=schema.title,
+        description=schema.description,
+        area=schema.area,
+        platform=schema.platform,
+        priority=schema.priority,
+        severity=schema.severity,
         actor=g.actor,
         actor_type=g.actor_type,
     )
@@ -260,47 +403,26 @@ def close_bug(bug_id: str):
     if err:
         return err
     data = request.get_json(silent=True) or {}
-    resolution = data.get("resolution")
-    if not resolution:
-        return _bad("resolution is required when closing a bug.")
-
-    # Agent warnings (non-blocking)
-    warnings = []
-    if resolution == "duplicate":
-        related = relations_repo.list_for_bug(_engine, bug_id)
-        if not related:
-            warnings.append(
-                "Closing as 'duplicate' without linking the canonical bug is not recommended."
-            )
-    if resolution == "fixed":
-        existing = annotations_repo.list_for_bug(_engine, bug_id)
-        if not existing and not data.get("annotation"):
-            warnings.append(
-                "Closing as 'fixed' without an annotation is not recommended."
-            )
+    try:
+        schema = CloseRequest.model_validate(data)
+    except ValidationError as exc:
+        error = exc.errors()[0]
+        field = error["loc"][0] if error["loc"] else "field"
+        msg = error["msg"]
+        return _bad(f"{field} {msg.lower()}" if msg == "Field required" else f"{field}: {msg}", 400)
 
     try:
-        updated = bugs_repo.close(
-            _engine, bug_id,
-            resolution=resolution,
-            actor=g.actor, actor_type=g.actor_type,
+        result = _bug_service.close_bug_with_annotation(
+            bug_id=bug_id,
+            resolution=schema.resolution,
+            annotation_body=schema.annotation,
+            actor=g.actor,
+            actor_type=g.actor_type,
         )
     except ValueError as exc:
         return _bad(str(exc), 409)
-
-    if data.get("annotation"):
-        annotations_repo.create(
-            _engine,
-            bug_id=bug_id,
-            author=g.actor,
-            author_type=g.actor_type,
-            body=data["annotation"],
-        )
-
-    resp = {"bug": updated}
-    if warnings:
-        resp["warnings"] = warnings
-    return jsonify(resp)
+    
+    return jsonify(result)
 
 
 @app.route("/bugs/<bug_id>/reopen", methods=["POST"])
@@ -357,12 +479,21 @@ def upload_artifact(bug_id: str):
 
     file = request.files["file"]
     filename = file.filename or "upload"
+    
+    # Validate file extension
+    if not _allowed_file(filename):
+        return _bad(f"File type not allowed. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}", 400)
+    
+    # Sanitize filename
+    safe_filename_base = secure_filename(filename)
+    if not safe_filename_base:
+        safe_filename_base = "upload"
 
     dest_dir = _UPLOADS_DIR / bug_id
     dest_dir.mkdir(parents=True, exist_ok=True)
     # Avoid collisions by prepending a short random prefix
     import secrets as _secrets
-    safe_name = _secrets.token_hex(4) + "_" + Path(filename).name
+    safe_name = _secrets.token_hex(4) + "_" + safe_filename_base
     dest_path = dest_dir / safe_name
     file.save(dest_path)
 
@@ -386,12 +517,15 @@ def download_artifact(bug_id: str, artifact_id: int):
     if artifact is None or artifact["bug_id"] != bug_id:
         return _bad("Artifact not found.", 404)
     abs_path = _UPLOADS_DIR / artifact["path"]
-    return send_from_directory(
+    resp = send_from_directory(
         str(abs_path.parent),
         abs_path.name,
         as_attachment=True,
         download_name=artifact["filename"],
     )
+    # Prevent MIME sniffing attacks
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
 
 
 # ---------------------------------------------------------------------------

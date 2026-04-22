@@ -37,6 +37,7 @@ _API_DB_PATH = _SESSION_DIR / "api.db"
 
 os.environ["BUGTRACKER_TOKEN"] = "test-token-please-ignore"
 os.environ["DATABASE_URL"] = f"sqlite:///{_API_DB_PATH}"
+os.environ["RUN_MIGRATIONS"] = "true"
 
 # Ensure app doesn't accidentally read the developer's .env
 # (load_dotenv is a no-op if the vars are already set, but belt + suspenders).
