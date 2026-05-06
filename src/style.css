@@ -435,6 +435,58 @@ textarea.form-control { min-height: 120px; resize: vertical; }
 }
 .login-card h2 { font-size: 1.2rem; margin-bottom: 20px; }
 
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.qr-label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.qr-code {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: #fff;
+  display: block;
+}
+.qr-mobile-hint {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.qr-hint {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.qr-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin: 16px 0;
+}
+.qr-divider::before,
+.qr-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* ---- Inline annotate / file picker ---- */
 .inline-annotate {
   margin-top: 8px;

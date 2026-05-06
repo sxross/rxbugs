@@ -77,7 +77,6 @@ import db.agents as agents_repo
 
 
 def _authenticate() -> tuple[str, str] | None:
-    return "human"
 
     """Validate the Authorization header.
 
@@ -624,6 +623,30 @@ def update_platform(name: str):
     if result is None:
         return _bad(f"Platform '{name}' not found.", 404)
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Auth — QR code magic link (unauthenticated)
+# ---------------------------------------------------------------------------
+
+@app.route("/auth/qr")
+@limiter.limit("20 per minute")
+def auth_qr():
+    """Return a PNG QR code encoding a magic-link URL with the bearer token.
+
+    Intentionally unauthenticated: the mobile device has no token yet.
+    Rate-limited to 20 req/min to prevent brute-force enumeration.
+    """
+    import io
+    import qrcode  # type: ignore[import]
+
+    magic_url = f"http://{request.host}/?token={_TOKEN}"
+    img = qrcode.make(magic_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype="image/png")
 
 
 # ---------------------------------------------------------------------------

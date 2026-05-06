@@ -73,11 +73,27 @@ function route(): void {
 // Login screen
 // ---------------------------------------------------------------------------
 
+const _isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && window.matchMedia("(pointer: coarse)").matches);
+
 function renderLogin(): void {
+  const qrBlock = _isMobile
+    ? `<div class="qr-section qr-mobile-hint">
+         <p class="qr-label">Sign in on desktop</p>
+         <p class="qr-hint">Open RxBugs on a desktop browser, click <strong>Show QR Code</strong>, then scan it with this device.</p>
+       </div>`
+    : `<div class="qr-section" id="qr-section">
+         <button class="btn btn-secondary" id="show-qr-btn">Show QR Code</button>
+         <p class="qr-label" id="qr-label" style="display:none">Scan with your phone to sign in</p>
+         <img class="qr-code" id="qr-img" src="/auth/qr" alt="QR code magic link" style="display:none" />
+       </div>`;
+
   app.innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
         <h2>RxBugs</h2>
+        ${qrBlock}
+        <div class="qr-divider"><span>or paste token</span></div>
         <div class="form-group">
           <label class="form-label" for="token-input">Access token</label>
           <input class="form-control" id="token-input" type="password"
@@ -90,6 +106,17 @@ function renderLogin(): void {
       </div>
     </div>
   `;
+
+  if (!_isMobile) {
+    const showQrBtn = app.querySelector<HTMLButtonElement>("#show-qr-btn")!;
+    const qrImg = app.querySelector<HTMLImageElement>("#qr-img")!;
+    const qrLabel = app.querySelector<HTMLElement>("#qr-label")!;
+    showQrBtn.addEventListener("click", () => {
+      showQrBtn.style.display = "none";
+      qrLabel.style.display = "";
+      qrImg.style.display = "";
+    });
+  }
 
   const tokenInput = app.querySelector<HTMLInputElement>("#token-input")!;
   const loginBtn = app.querySelector<HTMLButtonElement>("#login-btn")!;
@@ -128,6 +155,14 @@ function renderLogin(): void {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+
+// Handle magic-link token from QR code scan: ?token=<TOKEN>
+const _urlToken = new URLSearchParams(window.location.search).get("token");
+if (_urlToken) {
+  setToken(_urlToken);
+  // Remove the token from the address bar before routing
+  history.replaceState(null, "", window.location.pathname + window.location.hash);
+}
 
 window.addEventListener("hashchange", route);
 route();
