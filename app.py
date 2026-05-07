@@ -501,7 +501,7 @@ def update_product(name: str):
     elif data.get("archived") is True:
         result = products_repo.archive(_engine, name)
     else:
-        result = products_repo._get(_engine, name)  # type: ignore[attr-defined]
+        result = products_repo.get(_engine, name)
     if result is None:
         return _bad(f"Product '{name}' not found.", 404)
     return jsonify(result)
@@ -539,7 +539,7 @@ def update_area(name: str):
     elif data.get("archived") is True:
         result = areas_repo.archive(_engine, name)
     else:
-        result = areas_repo._get(_engine, name)  # type: ignore[attr-defined]
+        result = areas_repo.get(_engine, name)
     if result is None:
         return _bad(f"Area '{name}' not found.", 404)
     return jsonify(result)
@@ -579,7 +579,7 @@ def update_severity(name: str):
     elif data.get("archived") is True:
         result = severities_repo.archive(_engine, name)
     else:
-        result = severities_repo._get(_engine, name)  # type: ignore[attr-defined]
+        result = severities_repo.get(_engine, name)
     if result is None:
         return _bad(f"Severity '{name}' not found.", 404)
     return jsonify(result)
@@ -619,7 +619,7 @@ def update_platform(name: str):
     elif data.get("archived") is True:
         result = platforms_repo.archive(_engine, name)
     else:
-        result = platforms_repo._get(_engine, name)  # type: ignore[attr-defined]
+        result = platforms_repo.get(_engine, name)
     if result is None:
         return _bad(f"Platform '{name}' not found.", 404)
     return jsonify(result)
