@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 import sys
-from functools import wraps
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -52,9 +51,11 @@ _run_migrations()
 # Flask app + rate limiter
 # ---------------------------------------------------------------------------
 
-from flask import Flask, Response, g, jsonify, request, send_from_directory
+from flask import Flask, g, jsonify, request, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+from auth import bad as _bad, init_auth, require_auth
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
@@ -69,49 +70,7 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
-# ---------------------------------------------------------------------------
-# Auth helpers
-# ---------------------------------------------------------------------------
-
-import db.agents as agents_repo
-
-
-def _authenticate() -> tuple[str, str] | None:
-
-    """Validate the Authorization header.
-
-    Returns ``(actor_name, actor_type)`` or None if invalid.
-    'actor_type' is 'human' for the BUGTRACKER_TOKEN, 'agent' for agent keys.
-    """
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return None
-    token = auth[7:]
-    if token == _TOKEN:
-        return ("human", "human")
-    agent = agents_repo.authenticate(_engine, token)
-    if agent:
-        return (agent["name"], "agent")
-    return None
-
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        identity = _authenticate()
-        if identity is None:
-            return jsonify({"error": "Unauthorized"}), 401
-        g.actor, g.actor_type = identity
-        return f(*args, **kwargs)
-    return decorated
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _bad(msg: str, status: int = 400) -> Response:
-    return jsonify({"error": msg}), status
+init_auth(_TOKEN, _engine)
 
 
 def _bug_or_404(bug_id: str):
@@ -135,6 +94,7 @@ def index():
 # Bugs — list / create
 # ---------------------------------------------------------------------------
 
+import db.agents as agents_repo
 import db.annotations as annotations_repo
 import db.areas as areas_repo
 import db.artifacts as artifacts_repo
