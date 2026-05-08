@@ -57,8 +57,17 @@ from flask_limiter.util import get_remote_address
 
 from auth import bad as _bad, init_auth, require_auth
 
+# ---------------------------------------------------------------------------
+# Named constants (review item P10)
+# ---------------------------------------------------------------------------
+
+MAX_UPLOAD_MB = 50
+DEFAULT_RATE_LIMIT = "200 per minute"
+QR_RATE_LIMIT = "20 per minute"
+DEFAULT_AGENT_RATE_LIMIT = 60
+
 app = Flask(__name__, static_folder="static", static_url_path="/static")
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
 _UPLOADS_DIR = Path(__file__).parent / "uploads"
 _UPLOADS_DIR.mkdir(exist_ok=True)
@@ -66,7 +75,7 @@ _UPLOADS_DIR.mkdir(exist_ok=True)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
-    default_limits=["200 per minute"],
+    default_limits=[DEFAULT_RATE_LIMIT],
     storage_uri="memory://",
 )
 
@@ -414,7 +423,7 @@ def register_agent():
         _engine,
         name=data["name"],
         description=data.get("description"),
-        rate_limit=int(data.get("rate_limit", 60)),
+        rate_limit=int(data.get("rate_limit", DEFAULT_AGENT_RATE_LIMIT)),
     )
     # Return the raw key once — it is not retrievable after this response
     return jsonify({**agent, "key": raw_key}), 201
@@ -590,7 +599,7 @@ def update_platform(name: str):
 # ---------------------------------------------------------------------------
 
 @app.route("/auth/qr")
-@limiter.limit("20 per minute")
+@limiter.limit(QR_RATE_LIMIT)
 def auth_qr():
     """Return a PNG QR code encoding a magic-link URL with the bearer token.
 
@@ -625,7 +634,7 @@ def method_not_allowed(e):
 
 @app.errorhandler(413)
 def payload_too_large(e):
-    return jsonify({"error": "File too large (max 50 MB)"}), 413
+    return jsonify({"error": f"File too large (max {MAX_UPLOAD_MB} MB)"}), 413
 
 
 @app.errorhandler(429)

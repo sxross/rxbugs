@@ -10,12 +10,16 @@ from sqlalchemy import Engine, text
 
 from db.types import Agent
 
-_KEY_CHARS = string.ascii_letters + string.digits
-_KEY_LEN = 12
+AGENT_KEY_CHARS = string.ascii_letters + string.digits
+AGENT_KEY_LEN = 12
+AGENT_KEY_PREFIX = "agt_"
+DEFAULT_RATE_LIMIT = 60
 
 
 def _generate_key() -> str:
-    return "agt_" + "".join(secrets.choice(_KEY_CHARS) for _ in range(_KEY_LEN))
+    return AGENT_KEY_PREFIX + "".join(
+        secrets.choice(AGENT_KEY_CHARS) for _ in range(AGENT_KEY_LEN)
+    )
 
 
 def register(
@@ -23,7 +27,7 @@ def register(
     *,
     name: str,
     description: str | None = None,
-    rate_limit: int = 60,
+    rate_limit: int = DEFAULT_RATE_LIMIT,
 ) -> tuple[Agent, str]:
     """Register a new agent.
 
@@ -83,7 +87,7 @@ def get_rate_limit(engine: Engine, key: str) -> int:
             text("SELECT rate_limit FROM agents WHERE key = :key"),
             {"key": key},
         ).fetchone()
-    return row[0] if row else 60
+    return row[0] if row else DEFAULT_RATE_LIMIT
 
 
 def list_agents(engine: Engine) -> list[Agent]:

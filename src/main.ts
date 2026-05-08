@@ -35,7 +35,7 @@ function route(): void {
       });
     }).catch(() => {
       BugForm.render(app, {
-        title: `Edit ${bugId}`,
+        title: `Edit ${escHtml(bugId)}`,
         bugId,
         onSuccess: () => navigate(`/bugs/${bugId}`),
       });

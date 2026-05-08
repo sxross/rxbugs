@@ -8,6 +8,117 @@ import {
 import type { Agent, Area, Platform, Product, Severity } from "../types";
 import { navigate, escHtml } from "../utils";
 
+// ---------------------------------------------------------------------------
+// Lookup-table entry shape (shared by Product, Area, Severity, Platform)
+// ---------------------------------------------------------------------------
+
+interface LookupEntry {
+  name: string;
+  description: string | null;
+  archived: boolean;
+  bug_count: number;
+}
+
+interface LookupApi<T extends LookupEntry> {
+  list(includeArchived: boolean): Promise<T[]>;
+  create(name: string): Promise<T>;
+  rename(oldName: string, newName: string): Promise<T>;
+  archive(name: string): Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Generic lookup-table renderer
+// ---------------------------------------------------------------------------
+
+function renderLookupTable<T extends LookupEntry>(
+  body: HTMLElement,
+  list: T[],
+  key: string,
+  label: string,
+  api: LookupApi<T>,
+): void {
+  const el = body.querySelector<HTMLElement>(`#${key}-list`)!;
+  const errorEl = body.querySelector<HTMLElement>(`#${key}-error`)!;
+
+  function refresh(items: T[]): void {
+    el.innerHTML = items.length === 0
+      ? `<div class="empty-state" style="padding:12px 0">No ${label.toLowerCase()} yet.</div>`
+      : items.map(entry => `
+          <div class="admin-row" data-${key}="${escHtml(entry.name)}">
+            <div class="admin-row-info">
+              <div class="admin-row-name">${escHtml(entry.name)}${entry.archived ? " (archived)" : ""}</div>
+              <div class="admin-row-meta">${entry.bug_count} bug${entry.bug_count !== 1 ? "s" : ""}</div>
+            </div>
+            <div class="admin-row-actions">
+              <button class="btn btn-secondary ${key}-rename-btn" data-name="${escHtml(entry.name)}"
+                style="font-size:0.78rem;min-height:36px">Rename</button>
+              ${!entry.archived ? `<button class="btn btn-danger ${key}-archive-btn" data-name="${escHtml(entry.name)}"
+                style="font-size:0.78rem;min-height:36px">Archive</button>` : ""}
+            </div>
+          </div>
+        `).join("");
+
+    el.querySelectorAll<HTMLButtonElement>(`.${key}-rename-btn`).forEach(btn => {
+      btn.addEventListener("click", () => {
+        const old = btn.dataset["name"]!;
+        const newName = prompt(`Rename ${label.toLowerCase()} "${old}" to:`, old);
+        if (!newName || newName === old) return;
+        api.rename(old, newName).then(() => api.list(true))
+          .then(updated => refresh(updated))
+          .catch(err => { errorEl.textContent = err.message; });
+      });
+    });
+
+    el.querySelectorAll<HTMLButtonElement>(`.${key}-archive-btn`).forEach(btn => {
+      btn.addEventListener("click", () => {
+        const name = btn.dataset["name"]!;
+        if (!confirm(`Archive "${name}"?`)) return;
+        api.archive(name).then(() => api.list(true))
+          .then(updated => refresh(updated))
+          .catch(err => { errorEl.textContent = err.message; });
+      });
+    });
+  }
+
+  refresh(list);
+
+  // Wire the "Add" button
+  body.querySelector(`#add-${key}-btn`)!.addEventListener("click", () => {
+    const input = body.querySelector<HTMLInputElement>(`#new-${key}-name`)!;
+    const name = input.value.trim();
+    if (!name) return;
+    api.create(name).then(() => api.list(true))
+      .then(updated => {
+        refresh(updated);
+        input.value = "";
+        errorEl.textContent = "";
+      })
+      .catch(err => { errorEl.textContent = err.message; });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Section HTML template (shared by all 4 lookup tables)
+// ---------------------------------------------------------------------------
+
+function lookupSectionHtml(key: string, title: string, placeholder: string): string {
+  return `
+    <div class="admin-section">
+      <h2>${title}</h2>
+      <div id="${key}-list"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input class="form-control" id="new-${key}-name" type="text"
+          placeholder="${placeholder}" style="max-width:200px" />
+        <button class="btn btn-secondary" id="add-${key}-btn">Add</button>
+      </div>
+      <div class="form-error" id="${key}-error"></div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level render
+// ---------------------------------------------------------------------------
+
 export function render(container: HTMLElement): void {
   container.innerHTML = `
     <header>
@@ -36,6 +147,10 @@ export function render(container: HTMLElement): void {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Render all admin sections
+// ---------------------------------------------------------------------------
+
 function renderAdmin(
   body: HTMLElement,
   products: Product[],
@@ -45,53 +160,10 @@ function renderAdmin(
   agentsList: Agent[],
 ): void {
   body.innerHTML = `
-    <!-- ---- Products ---- -->
-    <div class="admin-section">
-      <h2>Products</h2>
-      <div id="products-list"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-control" id="new-product-name" type="text"
-          placeholder="Product name" style="max-width:200px" />
-        <button class="btn btn-secondary" id="add-product-btn">Add</button>
-      </div>
-      <div class="form-error" id="product-error"></div>
-    </div>
-
-    <!-- ---- Areas ---- -->
-    <div class="admin-section">
-      <h2>Areas</h2>
-      <div id="areas-list"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-control" id="new-area-name" type="text"
-          placeholder="Area name" style="max-width:200px" />
-        <button class="btn btn-secondary" id="add-area-btn">Add</button>
-      </div>
-      <div class="form-error" id="area-error"></div>
-    </div>
-
-    <!-- ---- Severities ---- -->
-    <div class="admin-section">
-      <h2>Severities</h2>
-      <div id="severities-list"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-control" id="new-severity-name" type="text"
-          placeholder="Severity name" style="max-width:200px" />
-        <button class="btn btn-secondary" id="add-severity-btn">Add</button>
-      </div>
-      <div class="form-error" id="severity-error"></div>
-    </div>
-
-    <!-- ---- Platforms ---- -->
-    <div class="admin-section">
-      <h2>Platforms</h2>
-      <div id="platforms-list"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-control" id="new-platform-name" type="text"
-          placeholder="Platform name" style="max-width:200px" />
-        <button class="btn btn-secondary" id="add-platform-btn">Add</button>
-      </div>
-      <div class="form-error" id="platform-error"></div>
-    </div>
+    ${lookupSectionHtml("product", "Products", "Product name")}
+    ${lookupSectionHtml("area", "Areas", "Area name")}
+    ${lookupSectionHtml("severity", "Severities", "Severity name")}
+    ${lookupSectionHtml("platform", "Platforms", "Platform name")}
 
     <!-- ---- Agents ---- -->
     <div class="admin-section">
@@ -114,57 +186,24 @@ function renderAdmin(
     </div>
   `;
 
-  // ---- Render helpers ----
-  function renderProducts(list: Product[]): void {
-    const el = body.querySelector<HTMLElement>("#products-list")!;
-    el.innerHTML = list.length === 0
-      ? `<div class="empty-state" style="padding:12px 0">No products yet.</div>`
-      : list.map(p => `
-          <div class="admin-row" data-product="${escHtml(p.name)}">
-            <div class="admin-row-info">
-              <div class="admin-row-name">${escHtml(p.name)}${p.archived ? " (archived)" : ""}</div>
-              <div class="admin-row-meta">${p.bug_count} bug${p.bug_count !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="admin-row-actions">
-              <button class="btn btn-secondary rename-btn" data-name="${escHtml(p.name)}"
-                style="font-size:0.78rem;min-height:36px">Rename</button>
-              ${!p.archived ? `<button class="btn btn-danger archive-btn" data-name="${escHtml(p.name)}"
-                style="font-size:0.78rem;min-height:36px">Archive</button>` : ""}
-            </div>
-          </div>
-        `).join("");
+  renderLookupTable(body, products, "product", "Product", productsApi);
+  renderLookupTable(body, areasList, "area", "Area", areasApi);
+  renderLookupTable(body, severitiesList, "severity", "Severity", severitiesApi);
+  renderLookupTable(body, platformsList, "platform", "Platform", platformsApi);
+  renderAgents(body, agentsList);
+}
 
-    el.querySelectorAll<HTMLButtonElement>(".rename-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const old = btn.dataset["name"]!;
-        const newName = prompt(`Rename "${old}" to:`, old);
-        if (!newName || newName === old) return;
-        productsApi.rename(old, newName).then(() => {
-          return productsApi.list(true);
-        }).then(updated => renderProducts(updated)).catch(err => {
-          body.querySelector<HTMLElement>("#product-error")!.textContent = err.message;
-        });
-      });
-    });
+// ---------------------------------------------------------------------------
+// Agents renderer (unique structure — not generic)
+// ---------------------------------------------------------------------------
 
-    el.querySelectorAll<HTMLButtonElement>(".archive-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const name = btn.dataset["name"]!;
-        if (!confirm(`Archive "${name}"?`)) return;
-        productsApi.archive(name).then(() => productsApi.list(true))
-          .then(updated => renderProducts(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#product-error")!.textContent = err.message;
-          });
-      });
-    });
-  }
+function renderAgents(body: HTMLElement, list: Agent[]): void {
+  const el = body.querySelector<HTMLElement>("#agents-list")!;
 
-  function renderAgents(list: Agent[]): void {
-    const el = body.querySelector<HTMLElement>("#agents-list")!;
-    el.innerHTML = list.length === 0
+  function refresh(items: Agent[]): void {
+    el.innerHTML = items.length === 0
       ? `<div class="empty-state" style="padding:12px 0">No agents registered.</div>`
-      : list.map(a => `
+      : items.map(a => `
           <div class="admin-row">
             <div class="admin-row-info">
               <div class="admin-row-name">${escHtml(a.name)}
@@ -185,7 +224,7 @@ function renderAdmin(
         const key = btn.dataset["key"]!;
         if (!confirm("Revoke this agent key?")) return;
         agentsApi.revoke(key).then(() => agentsApi.list())
-          .then(updated => renderAgents(updated))
+          .then(updated => refresh(updated))
           .catch(err => {
             body.querySelector<HTMLElement>("#agent-error")!.textContent = err.message;
           });
@@ -193,211 +232,8 @@ function renderAdmin(
     });
   }
 
-  // ---- Areas ----
-  function renderAreas(list: Area[]): void {
-    const el = body.querySelector<HTMLElement>("#areas-list")!;
-    el.innerHTML = list.length === 0
-      ? `<div class="empty-state" style="padding:12px 0">No areas yet.</div>`
-      : list.map(a => `
-          <div class="admin-row" data-area="${escHtml(a.name)}">
-            <div class="admin-row-info">
-              <div class="admin-row-name">${escHtml(a.name)}${a.archived ? " (archived)" : ""}</div>
-              <div class="admin-row-meta">${a.bug_count} bug${a.bug_count !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="admin-row-actions">
-              <button class="btn btn-secondary area-rename-btn" data-name="${escHtml(a.name)}"
-                style="font-size:0.78rem;min-height:36px">Rename</button>
-              ${!a.archived ? `<button class="btn btn-danger area-archive-btn" data-name="${escHtml(a.name)}"
-                style="font-size:0.78rem;min-height:36px">Archive</button>` : ""}
-            </div>
-          </div>
-        `).join("");
+  refresh(list);
 
-    el.querySelectorAll<HTMLButtonElement>(".area-rename-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const old = btn.dataset["name"]!;
-        const newName = prompt(`Rename area "${old}" to:`, old);
-        if (!newName || newName === old) return;
-        areasApi.rename(old, newName).then(() => areasApi.list(true))
-          .then(updated => renderAreas(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#area-error")!.textContent = err.message;
-          });
-      });
-    });
-
-    el.querySelectorAll<HTMLButtonElement>(".area-archive-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const name = btn.dataset["name"]!;
-        if (!confirm(`Archive "${name}"?`)) return;
-        areasApi.archive(name).then(() => areasApi.list(true))
-          .then(updated => renderAreas(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#area-error")!.textContent = err.message;
-          });
-      });
-    });
-  }
-
-  // ---- Severities ----
-  function renderSeverities(list: Severity[]): void {
-    const el = body.querySelector<HTMLElement>("#severities-list")!;
-    el.innerHTML = list.length === 0
-      ? `<div class="empty-state" style="padding:12px 0">No severities yet.</div>`
-      : list.map(s => `
-          <div class="admin-row" data-severity="${escHtml(s.name)}">
-            <div class="admin-row-info">
-              <div class="admin-row-name">${escHtml(s.name)}${s.archived ? " (archived)" : ""}</div>
-              <div class="admin-row-meta">${s.bug_count} bug${s.bug_count !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="admin-row-actions">
-              <button class="btn btn-secondary severity-rename-btn" data-name="${escHtml(s.name)}"
-                style="font-size:0.78rem;min-height:36px">Rename</button>
-              ${!s.archived ? `<button class="btn btn-danger severity-archive-btn" data-name="${escHtml(s.name)}"
-                style="font-size:0.78rem;min-height:36px">Archive</button>` : ""}
-            </div>
-          </div>
-        `).join("");
-
-    el.querySelectorAll<HTMLButtonElement>(".severity-rename-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const old = btn.dataset["name"]!;
-        const newName = prompt(`Rename severity "${old}" to:`, old);
-        if (!newName || newName === old) return;
-        severitiesApi.rename(old, newName).then(() => severitiesApi.list(true))
-          .then(updated => renderSeverities(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#severity-error")!.textContent = err.message;
-          });
-      });
-    });
-
-    el.querySelectorAll<HTMLButtonElement>(".severity-archive-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const name = btn.dataset["name"]!;
-        if (!confirm(`Archive "${name}"?`)) return;
-        severitiesApi.archive(name).then(() => severitiesApi.list(true))
-          .then(updated => renderSeverities(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#severity-error")!.textContent = err.message;
-          });
-      });
-    });
-  }
-
-  // ---- Platforms ----
-  function renderPlatforms(list: Platform[]): void {
-    const el = body.querySelector<HTMLElement>("#platforms-list")!;
-    el.innerHTML = list.length === 0
-      ? `<div class="empty-state" style="padding:12px 0">No platforms yet.</div>`
-      : list.map(p => `
-          <div class="admin-row" data-platform="${escHtml(p.name)}">
-            <div class="admin-row-info">
-              <div class="admin-row-name">${escHtml(p.name)}${p.archived ? " (archived)" : ""}</div>
-              <div class="admin-row-meta">${p.bug_count} bug${p.bug_count !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="admin-row-actions">
-              <button class="btn btn-secondary platform-rename-btn" data-name="${escHtml(p.name)}"
-                style="font-size:0.78rem;min-height:36px">Rename</button>
-              ${!p.archived ? `<button class="btn btn-danger platform-archive-btn" data-name="${escHtml(p.name)}"
-                style="font-size:0.78rem;min-height:36px">Archive</button>` : ""}
-            </div>
-          </div>
-        `).join("");
-
-    el.querySelectorAll<HTMLButtonElement>(".platform-rename-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const old = btn.dataset["name"]!;
-        const newName = prompt(`Rename platform "${old}" to:`, old);
-        if (!newName || newName === old) return;
-        platformsApi.rename(old, newName).then(() => platformsApi.list(true))
-          .then(updated => renderPlatforms(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#platform-error")!.textContent = err.message;
-          });
-      });
-    });
-
-    el.querySelectorAll<HTMLButtonElement>(".platform-archive-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const name = btn.dataset["name"]!;
-        if (!confirm(`Archive "${name}"?`)) return;
-        platformsApi.archive(name).then(() => platformsApi.list(true))
-          .then(updated => renderPlatforms(updated))
-          .catch(err => {
-            body.querySelector<HTMLElement>("#platform-error")!.textContent = err.message;
-          });
-      });
-    });
-  }
-
-  renderProducts(products);
-  renderAreas(areasList);
-  renderSeverities(severitiesList);
-  renderPlatforms(platformsList);
-  renderAgents(agentsList);
-
-  // ---- Add product ----
-  body.querySelector("#add-product-btn")!.addEventListener("click", () => {
-    const name = (body.querySelector<HTMLInputElement>("#new-product-name")!).value.trim();
-    if (!name) return;
-    productsApi.create(name).then(() => productsApi.list(true))
-      .then(updated => {
-        renderProducts(updated);
-        body.querySelector<HTMLInputElement>("#new-product-name")!.value = "";
-        body.querySelector<HTMLElement>("#product-error")!.textContent = "";
-      })
-      .catch(err => {
-        body.querySelector<HTMLElement>("#product-error")!.textContent = err.message;
-      });
-  });
-
-  // ---- Add area ----
-  body.querySelector("#add-area-btn")!.addEventListener("click", () => {
-    const name = (body.querySelector<HTMLInputElement>("#new-area-name")!).value.trim();
-    if (!name) return;
-    areasApi.create(name).then(() => areasApi.list(true))
-      .then(updated => {
-        renderAreas(updated);
-        body.querySelector<HTMLInputElement>("#new-area-name")!.value = "";
-        body.querySelector<HTMLElement>("#area-error")!.textContent = "";
-      })
-      .catch(err => {
-        body.querySelector<HTMLElement>("#area-error")!.textContent = err.message;
-      });
-  });
-
-  // ---- Add severity ----
-  body.querySelector("#add-severity-btn")!.addEventListener("click", () => {
-    const name = (body.querySelector<HTMLInputElement>("#new-severity-name")!).value.trim();
-    if (!name) return;
-    severitiesApi.create(name).then(() => severitiesApi.list(true))
-      .then(updated => {
-        renderSeverities(updated);
-        body.querySelector<HTMLInputElement>("#new-severity-name")!.value = "";
-        body.querySelector<HTMLElement>("#severity-error")!.textContent = "";
-      })
-      .catch(err => {
-        body.querySelector<HTMLElement>("#severity-error")!.textContent = err.message;
-      });
-  });
-
-  // ---- Add platform ----
-  body.querySelector("#add-platform-btn")!.addEventListener("click", () => {
-    const name = (body.querySelector<HTMLInputElement>("#new-platform-name")!).value.trim();
-    if (!name) return;
-    platformsApi.create(name).then(() => platformsApi.list(true))
-      .then(updated => {
-        renderPlatforms(updated);
-        body.querySelector<HTMLInputElement>("#new-platform-name")!.value = "";
-        body.querySelector<HTMLElement>("#platform-error")!.textContent = "";
-      })
-      .catch(err => {
-        body.querySelector<HTMLElement>("#platform-error")!.textContent = err.message;
-      });
-  });
-
-  // ---- Register agent ----
   body.querySelector("#add-agent-btn")!.addEventListener("click", () => {
     const name = (body.querySelector<HTMLInputElement>("#new-agent-name")!).value.trim();
     const desc = (body.querySelector<HTMLInputElement>("#new-agent-desc")!).value.trim();
@@ -411,7 +247,7 @@ function renderAdmin(
       body.querySelector<HTMLInputElement>("#new-agent-desc")!.value = "";
       body.querySelector<HTMLElement>("#agent-error")!.textContent = "";
       return agentsApi.list();
-    }).then(updated => renderAgents(updated))
+    }).then(updated => refresh(updated))
       .catch(err => {
         body.querySelector<HTMLElement>("#agent-error")!.textContent = err.message;
       });
