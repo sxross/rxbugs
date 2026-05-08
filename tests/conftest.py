@@ -71,52 +71,9 @@ def _run_migrations(url: str) -> None:
         else:
             os.environ["DATABASE_URL"] = previous
 
-    # The shipped ``bugs_fts_update`` / ``bugs_fts_delete`` triggers use direct
-    # ``UPDATE`` / ``DELETE`` on the FTS5 shadow table, which is the wrong
-    # pattern for an external-content FTS5 table and can leave the index
-    # out of sync with the content rows (manifests as
-    # "database disk image is malformed" on later writes).  Swap in the
-    # SQLite-recommended delete-and-insert triggers so integration tests
-    # exercise realistic behaviour without tripping the bug.
-    _install_fts5_triggers(url)
 
 
-def _install_fts5_triggers(url: str) -> None:
-    eng = create_engine(
-        url,
-        connect_args={"check_same_thread": False},
-        poolclass=NullPool,
-    )
-    try:
-        with eng.connect() as conn:
-            conn.execute(text("DROP TRIGGER IF EXISTS bugs_fts_update"))
-            conn.execute(text("DROP TRIGGER IF EXISTS bugs_fts_delete"))
-            conn.execute(text("""
-                CREATE TRIGGER bugs_fts_update AFTER UPDATE ON bugs BEGIN
-                    INSERT INTO bugs_fts(bugs_fts, rowid, id, product, title,
-                                         description, artifact_filenames)
-                    VALUES ('delete', old.rowid, old.id, old.product, old.title,
-                            old.description, old.artifact_filenames);
-                    INSERT INTO bugs_fts(rowid, id, product, title,
-                                         description, artifact_filenames)
-                    VALUES (new.rowid, new.id, new.product, new.title,
-                            new.description, new.artifact_filenames);
-                END
-            """))
-            conn.execute(text("""
-                CREATE TRIGGER bugs_fts_delete AFTER DELETE ON bugs BEGIN
-                    INSERT INTO bugs_fts(bugs_fts, rowid, id, product, title,
-                                         description, artifact_filenames)
-                    VALUES ('delete', old.rowid, old.id, old.product, old.title,
-                            old.description, old.artifact_filenames);
-                END
-            """))
-            conn.commit()
-    finally:
-        eng.dispose()
-
-
-# Seed data that the migrations insert into the lookup tables.
+# Seed data
 _SEED_AREAS = ["ui", "middleware", "backend", "database", "sync"]
 _SEED_SEVERITIES = ["showstopper", "serious", "enhancement", "nice_to_have"]
 _SEED_PLATFORMS = ["iOS", "Android", "Web", "macOS", "Windows", "Linux"]
@@ -205,9 +162,6 @@ def flask_app():
     """Import ``app`` exactly once after env vars are in place."""
     import app as flask_module  # noqa: WPS433 — deliberate runtime import
 
-    # Swap the FTS5 triggers to the SQLite-recommended delete+insert pattern
-    # (see ``_install_fts5_triggers`` for details).
-    _install_fts5_triggers(os.environ["DATABASE_URL"])
     # Disable Flask-Limiter so noisy test loops don't trip it.
     flask_module.limiter.enabled = False
     flask_module.app.config["TESTING"] = True
