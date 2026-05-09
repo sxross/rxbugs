@@ -70,6 +70,8 @@ class BugFilters(TypedDict, total=False):
     has_artifacts: bool
     created_after: str
     created_before: str
+    page: int
+    per_page: int
 
 
 # ---------------------------------------------------------------------------

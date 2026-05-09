@@ -103,6 +103,14 @@ function renderLogin(): void {
         <div class="form-actions">
           <button class="btn btn-primary" id="login-btn">Sign in</button>
         </div>
+        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ccc;">
+          <p style="margin-bottom: 1rem; color: #666;">Or scan with your phone:</p>
+          <button class="btn" id="show-qr-btn" style="margin-bottom: 1rem;">Show QR Code</button>
+          <div id="qr-container" style="display: none;">
+            <img id="qr-image" src="" alt="QR Code" style="max-width: 256px; margin: 0 auto; display: block;" />
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">Expires in 5 minutes</p>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -121,6 +129,9 @@ function renderLogin(): void {
   const tokenInput = app.querySelector<HTMLInputElement>("#token-input")!;
   const loginBtn = app.querySelector<HTMLButtonElement>("#login-btn")!;
   const errorEl = app.querySelector<HTMLElement>("#login-error")!;
+  const showQrBtn = app.querySelector<HTMLButtonElement>("#show-qr-btn")!;
+  const qrContainer = app.querySelector<HTMLElement>("#qr-container")!;
+  const qrImage = app.querySelector<HTMLImageElement>("#qr-image")!;
 
   async function tryLogin(): Promise<void> {
     const token = tokenInput.value.trim();
@@ -149,6 +160,41 @@ function renderLogin(): void {
       loginBtn.textContent = "Checking…";
       tryLogin();
     }
+  });
+
+  showQrBtn.addEventListener("click", () => {
+    // Note: QR endpoint requires auth, so we need a valid token first.
+    // For desktop users, they paste token, then can show QR for mobile.
+    const token = getToken() || tokenInput.value.trim();
+    if (!token) {
+      errorEl.textContent = "Please enter your token first to generate QR code.";
+      return;
+    }
+    
+    // Temporarily set token to make the request
+    const previousToken = getToken();
+    setToken(token);
+    
+    // Fetch QR code
+    fetch("/auth/qr", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(resp => {
+        if (!resp.ok) throw new Error("Failed to generate QR code");
+        return resp.blob();
+      })
+      .then(blob => {
+        qrImage.src = URL.createObjectURL(blob);
+        qrContainer.style.display = "block";
+        showQrBtn.style.display = "none";
+      })
+      .catch(() => {
+        errorEl.textContent = "Failed to generate QR code. Check your token.";
+        // Restore previous token state
+        if (previousToken) {
+          setToken(previousToken);
+        }
+      });
   });
 }
 

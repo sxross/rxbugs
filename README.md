@@ -34,8 +34,15 @@ python app.py
 The server starts on `http://0.0.0.0:5000`.  
 Open `http://localhost:5000` in your browser and paste the token from `.env`.
 
-The database (`bugtracker.db`) and schema are created automatically on first run
-via Alembic migrations.
+**Mobile authentication**: After logging in on desktop, click "Show QR Code" to generate a QR code. Scan it with your phone to log in instantly without typing the long token.
+
+**Note**: On first run, you must initialize the database schema manually:
+
+```bash
+alembic upgrade head
+```
+
+The migrations are **not** run automatically by the server (controlled by `RUN_MIGRATIONS` env var, default: false). This prevents accidental migrations in production.
 
 ### 4. Build the UI (optional)
 
@@ -120,6 +127,48 @@ Content-Type: application/json
 ```
 
 The response includes the `key` field — save it, it is shown once.
+
+---
+
+## Database Migrations
+
+Migrations are managed via Alembic and must be run manually before starting the server:
+
+```bash
+alembic upgrade head
+```
+
+**Development**: To auto-run migrations on startup (e.g., for tests or local dev), set:
+
+```bash
+export RUN_MIGRATIONS=true
+```
+
+**Production**: Always run migrations as a separate deployment step. Never set `RUN_MIGRATIONS=true` in production.
+
+## Rate Limiting
+
+The app uses Flask-Limiter with in-memory storage by default (suitable for development only).
+
+**Production**: Set `REDIS_URL` for shared rate limiting across processes/instances:
+
+```bash
+export REDIS_URL=redis://localhost:6379
+```
+
+Or use a Redis connection string with authentication:
+
+```bash
+export REDIS_URL=redis://:password@hostname:6379/0
+```
+
+You must install the Redis Python client:
+
+```bash
+pip install redis
+```
+
+Without Redis, rate limiting only works within a single process and resets on server restart.
 
 ---
 
