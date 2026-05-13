@@ -4,6 +4,7 @@ import LoginPage from './views/LoginPage'
 import BugListPage from './views/BugListPage'
 import BugDetailPage from './views/BugDetailPage'
 import BugFormPage from './views/BugFormPage'
+import AdminPage from './views/AdminPage'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -53,7 +54,7 @@ export default function App() {
         path="/admin/*"
         element={
           <ProtectedRoute>
-            <Placeholder label="Admin" />
+            <AdminPage />
           </ProtectedRoute>
         }
       />
