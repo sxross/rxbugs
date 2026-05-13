@@ -92,7 +92,7 @@ def _bug_or_404(bug_id: str):
     return bug, None
 
 # Register blueprints
-from routes import auth_bp, bugs_bp, artifacts_bp, admin_bp
+from routes import auth_bp, bugs_bp, artifacts_bp, admin_bp, openapi_bp
 from routes.auth import init_auth
 from routes.bugs import init_bugs
 from routes.artifacts import init_artifacts
@@ -107,6 +107,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(bugs_bp)
 app.register_blueprint(artifacts_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(openapi_bp)
 
 # SPA shell
 @app.route("/")
