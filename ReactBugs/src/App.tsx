@@ -6,14 +6,6 @@ import BugDetailPage from './views/BugDetailPage'
 import BugFormPage from './views/BugFormPage'
 import AdminPage from './views/AdminPage'
 
-function Placeholder({ label }: { label: string }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <p className="text-gray-500 text-sm">{label} — coming soon</p>
-    </div>
-  )
-}
-
 export default function App() {
   return (
     <Routes>
