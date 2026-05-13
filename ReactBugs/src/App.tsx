@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './views/LoginPage'
 import BugListPage from './views/BugListPage'
 import BugDetailPage from './views/BugDetailPage'
+import BugFormPage from './views/BugFormPage'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -28,7 +29,7 @@ export default function App() {
         path="/bugs/new"
         element={
           <ProtectedRoute>
-            <Placeholder label="New bug" />
+            <BugFormPage />
           </ProtectedRoute>
         }
       />
@@ -36,7 +37,7 @@ export default function App() {
         path="/bugs/:id/edit"
         element={
           <ProtectedRoute>
-            <Placeholder label="Edit bug" />
+            <BugFormPage />
           </ProtectedRoute>
         }
       />
