@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './views/LoginPage'
+import BugListPage from './views/BugListPage'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -18,7 +19,7 @@ export default function App() {
         path="/bugs"
         element={
           <ProtectedRoute>
-            <Placeholder label="Bug list" />
+            <BugListPage />
           </ProtectedRoute>
         }
       />
