@@ -149,7 +149,7 @@ export default function BugFormPage() {
   const isPending = create.isPending || update.isPending
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
           <h1 className="text-xl font-bold text-gray-900">
