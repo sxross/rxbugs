@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { bugs as bugsApi } from '../api'
+import { bugs as bugsApi, products, areas, platforms, severities } from '../api'
 import type { BugFilters, Priority, Resolution, Status } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -208,23 +208,19 @@ export default function BugListPage() {
   // Fetch lookup options for filter dropdowns
   const { data: productOpts = [] } = useQuery({
     queryKey: ['products'],
-    queryFn: () =>
-      import('../api').then((m) => m.products.list()).then((ps) => ps.map((p) => p.name)),
+    queryFn: () => products.list().then((ps) => ps.map((p) => p.name)),
   })
   const { data: areaOpts = [] } = useQuery({
     queryKey: ['areas'],
-    queryFn: () =>
-      import('../api').then((m) => m.areas.list()).then((as) => as.map((a) => a.name)),
+    queryFn: () => areas.list().then((as) => as.map((a) => a.name)),
   })
   const { data: platformOpts = [] } = useQuery({
     queryKey: ['platforms'],
-    queryFn: () =>
-      import('../api').then((m) => m.platforms.list()).then((ps) => ps.map((p) => p.name)),
+    queryFn: () => platforms.list().then((ps) => ps.map((p) => p.name)),
   })
   const { data: severityOpts = [] } = useQuery({
     queryKey: ['severities'],
-    queryFn: () =>
-      import('../api').then((m) => m.severities.list()).then((ss) => ss.map((s) => s.name)),
+    queryFn: () => severities.list().then((ss) => ss.map((s) => s.name)),
   })
 
   const { data, isLoading, isError } = useQuery({
