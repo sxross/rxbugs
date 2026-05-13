@@ -24,9 +24,20 @@ Edit `.env` and set `BUGTRACKER_TOKEN` to a random secret:
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-### 3. Run the server
+### 3. Run the app
+
+**First run** (initializes the database):
 
 ```bash
+# Terminal 1 — Flask backend
+source .venv/bin/activate
+RUN_MIGRATIONS=true python app.py
+```
+
+**Subsequent runs** (schema already exists):
+
+```bash
+# Terminal 1 — Flask backend
 source .venv/bin/activate
 python app.py
 ```
@@ -36,27 +47,28 @@ Open `http://localhost:5000` in your browser and paste the token from `.env`.
 
 **Mobile authentication**: After logging in on desktop, click "Show QR Code" to generate a QR code. Scan it with your phone to log in instantly without typing the long token.
 
-**Note**: On first run, you must initialize the database schema manually:
+#### Development hot-reload (optional)
+
+`npm run dev` starts Vite's hot-reload server and **proxies all API calls to the already-running Flask server on :5000**. Flask must be started first.
 
 ```bash
-alembic upgrade head
+# Terminal 1 — Flask backend (must be running first)
+source .venv/bin/activate
+python app.py
+
+# Terminal 2 — Vite dev server with hot-reload
+npm run dev
 ```
 
-The migrations are **not** run automatically by the server (controlled by `RUN_MIGRATIONS` env var, default: false). This prevents accidental migrations in production.
+Open `http://localhost:5173` for the hot-reload UI, or `http://localhost:5000` for the production build served by Flask.
 
-### 4. Build the UI (optional)
+### 4. Rebuild the UI (optional)
 
 The `static/` directory contains a pre-built UI. To rebuild after editing `src/`:
 
 ```bash
 npm install
 npm run build
-```
-
-During development, run the Vite dev server alongside Flask for hot-reload:
-
-```bash
-npm run dev   # proxies API calls to Flask on :5000
 ```
 
 ---
