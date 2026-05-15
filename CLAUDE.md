@@ -90,6 +90,14 @@ Alembic migrations live in `alembic/versions/`. They do **not** run automaticall
 
 API tests wipe mutable tables between tests; repo tests get isolated DBs. Test files are split by feature (`test_api_bugs.py`, `test_api_annotations.py`, etc.).
 
+## Development Workflow
+
+### Bug Fixes
+Write a failing test that exposes the bug first. Commit the test. Then implement the fix and iterate until the test passes. Run the full test suite; commit only when all tests are green.
+
+### Features
+Follow the same test-first process: write complete tests including edge cases, commit, then implement and iterate until green. For complex features broken into multiple steps, write tests only for the step you are starting — don't write tests for future steps upfront.
+
 ## Key Constraints
 
 - **Auth everywhere:** every route uses `@require_auth` from `auth.py`; agent keys live in the `agents` table with individual rate limits
